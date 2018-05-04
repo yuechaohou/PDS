@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[7]:
+# In[1]:
 
 
 # setup library imports
@@ -13,9 +13,10 @@ import pickle
 from collections import Counter
 import html
 from datetime import datetime
+from multiprocessing import Pool
 
 
-# In[79]:
+# In[2]:
 
 
 #helper function to locate the location of interest
@@ -34,7 +35,7 @@ def find_helper(root, tag, content, ty='movie'):
     pass
 
 
-# In[80]:
+# In[3]:
 
 
 #helper function to parse the table
@@ -64,7 +65,7 @@ def table_helper(root, titles, tag, content):
                         try:
                             table_dic['Change']=float(column.get_text().replace(u'\xa0', u' ').strip('%'))/100
                         except:
-                            table_dic['Change']=float(0.0)
+                            table_dic['Change']='-'
                 else:
                     if column.get_text().replace(u'\xa0', u' ')=='-':
                         table_dic[titles[i]]='-'
@@ -75,7 +76,10 @@ def table_helper(root, titles, tag, content):
                             table_dic[titles[i]]=html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','')
                             pass
             else:
-                table_dic[titles[i]]=datetime.strptime(html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r',''), '%Y/%m/%d')
+                try:
+                    table_dic[titles[i]]=datetime.strptime(html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r',''), '%Y/%m/%d')
+                except:
+                    table_dic[titles[i]]='-'
             i+=1
                 
         if len(table_dic)>0:
@@ -84,7 +88,7 @@ def table_helper(root, titles, tag, content):
     return table_list
 
 
-# In[81]:
+# In[4]:
 
 
 #helper function to parse the center table
@@ -111,21 +115,21 @@ def center_table_helper(root, titles, tag, content, ty='movie'):
                     try:
                         table_dic[titles[i]]=datetime.strptime(html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').strip(), '%b %d, %Y')
                     except:
-                        print(column.get_text())
+                        table_dic[titles[i]]='-'
                         isend=True
                         break
                 elif titles[i]=='Release Date' or titles[i]=='Report Date':
                     try:
                         table_dic[titles[i]]=datetime.strptime(html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r',''), '%m/%d/%Y')
                     except:
-                        print(column.get_text())
+                        table_dic[titles[i]]='-'
                         isend=True
                         break
                 elif titles[i]=='Domestic Share':
                     try:
                         table_dic[titles[i]]=float(html.unescape(column.get_text()).replace(u'\xa0', u' ').replace('%',''))/100
                     except:
-                        table_dic[titles[i]]=0.0
+                        table_dic[titles[i]]='-'
                 elif (not titles[i].startswith('Record'))  and (not titles[i].startswith('Role')) and (not titles[i].startswith('Title')) and (not titles[i].startswith('Report')) and (not titles[i].startswith('Chart')) and (not titles[i].startswith('Territory')) and (not titles[i].startswith('Release')) and titles[i]!='':
                     if column.get_text().replace(u'\xa0', u' ')=='-':
                         table_dic[titles[i]]=-1
@@ -147,7 +151,7 @@ def center_table_helper(root, titles, tag, content, ty='movie'):
     return table_list
 
 
-# In[82]:
+# In[31]:
 
 
 #helper function to parse the table in cast tab
@@ -155,7 +159,7 @@ def cast_table_helper(root, tag, content):
     details=find_helper(root, tag, content)
     host_url="https://www.the-numbers.com"
     
-    is_First=True
+    #is_First=True
     table_list=list()
     
     if details==None:
@@ -166,9 +170,8 @@ def cast_table_helper(root, tag, content):
         table_dic['name']=html.unescape(a.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').strip()
         table_dic['url']=host_url+a.get('href')
         if content=='Production and Technical Credits':
-            if is_First:
-                table_dic['role']=html.unescape(a.find_next().find_next().find_next().get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').strip()
-                is_First=False
+            if a.span:
+                table_dic['role']=text1=html.unescape(a.find_next().find_next().find_next().get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').strip()
             else:
                 table_dic['role']=html.unescape(a.find_next().find_next().get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').strip()
         table_list.append(table_dic)
@@ -176,7 +179,7 @@ def cast_table_helper(root, tag, content):
     return table_list
 
 
-# In[83]:
+# In[6]:
 
 
 #helper function
@@ -247,6 +250,24 @@ def parse_page(html_page, title):
                 
                 lis['International Releases']=sub_dic
             
+            elif c_name.startswith('Video'):
+                text=html.unescape(second_child.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','').split('by')
+                if len(text[0].split(','))>1:
+                    date_type=text[0].split(',')[0][-2:]
+                    try:
+                        lis['Video Release']=datetime.strptime(text[0].strip(), '%B %d'+date_type+', %Y')
+                    except:
+                        try:
+                            lis['Video Release']=datetime.strptime(text[0].strip(), '%B, %Y')
+                        except:
+                            temp=text[0].split(',')
+                            date_type=temp[0][-2:]
+                            lis['Video Release']=datetime.strptime(temp[0]+','+temp[1], '%B %d'+date_type+', %Y')
+                            
+                else:
+                    lis['Video Release']=datetime.strptime(text[0].strip(), '%Y')
+                
+                
             elif c_name.startswith('MPAA'):
                 lis['MPAA Rating']=html.unescape(second_child.get_text()).replace(u'\xa0', u' ').replace('\n','').replace('\r','')
             
@@ -321,7 +342,10 @@ def parse_page(html_page, title):
                 
         text_list=list()
         for url in url_list:
-            url_response=requests.get(url)
+            try:
+                url_response=requests.get(url)
+            except:
+                continue
             url_html=url_response.content
             url_root=BeautifulSoup(url_html.decode('utf-8'), "html.parser")
             for div in url_root.find_all('div'):
@@ -344,7 +368,7 @@ def parse_page(html_page, title):
     return lis
 
 
-# In[84]:
+# In[7]:
 
 
 #helper function
@@ -395,9 +419,10 @@ def get_info(url):
     return total_dic
 
 
+# In[15]:
 
 
-# In[85]:
+# In[8]:
 
 
 #function to get the dictionary of {name:url}
@@ -460,9 +485,9 @@ def extract_url_dic():
     return name_dic
 
 
+# In[17]:
 
-
-# In[18]:
+# In[9]:
 
 
 #function to get the dictionary of {name:url}
@@ -510,7 +535,7 @@ def extract_url_dic_bykey():
 
 
 
-# In[96]:
+# In[35]:
 
 
 #get all the movie information and save in movie_info.pkl
@@ -519,10 +544,16 @@ def get_all_movie_info():
     with open('name_url.pkl', 'rb') as f:
         name_dic = pickle.load(f)
     
+    pool = Pool(processes=10)
+    
     total_dic=dict()
-    for name in name_dic.keys():
-        print(name)
-        total_dic[name]=get_info_with_name(name)
+    keys=list(name_dic.keys())
+    pool_outputs = pool.map(get_info_with_name,keys)
+    pool.close()
+    pool.join()
+
+    for i in range(len(keys)):
+        total_dic[keys[i]]=pool_outputs[i]
     
     with open('movie_info.pkl', 'wb') as f:
         pickle.dump(total_dic, f)
@@ -530,7 +561,9 @@ def get_all_movie_info():
     return total_dic
 
 
-# In[103]:
+
+
+# In[11]:
 
 
 #get all the movie categories information
@@ -638,9 +671,9 @@ def get_all_movie_categories():
     return movie_categories
 
 
+# In[105]:
 
-
-# In[49]:
+# In[12]:
 
 
 def parse_person_page(html_page, title):
@@ -710,20 +743,22 @@ def parse_person_page(html_page, title):
 
 
 # ## PKL Explanation
-# Currentlt, there are 4 pkl files.
-# In name_url.pkl, there is a dictionary with the structure {name of movie: {'url': string, 'Release Date': datetime, 'Production Budget': int, 'Domestic Gross': int, 'Worldwide Gross': int},...}, where th key is the the movie name(year). Currently there are 5517 movies.
-# In name_url_bykey.pkl, there is a dictionaey with the structure {movie name: url,...}, where the key is the movie name(year), the value is the url link to the page contains the information of the movie. Currently, there are 13458 movies, but not used. 
-# In person_name_url.pkl, there is a dictionary with the structure {person name: url,...}, where the key is the user name and the value is the url link to the page contains the inforation of the user.
-# In movie_categories.pkl, there is a dictionary with the movies name lists categoried with different tags. The details is explained in the api function get_movie_categories().
+# Currentlt, there are 5 pkl files.
+# 
+# * In name_url.pkl, there is a dictionary with the structure {name of movie: {'url': string, 'Release Date': datetime, 'Production Budget': int, 'Domestic Gross': int, 'Worldwide Gross': int},...}, where th key is the the movie name(year). Currently there are 5518 movies.
+# 
+# * In name_url_bykey.pkl, there is a dictionaey with the structure {movie name: url,...}, where the key is the movie name(year), the value is the url link to the page contains the information of the movie. Currently, there are 13458 movies, but not used. 
+# 
+# * In person_name_url.pkl, there is a dictionary with the structure {person name: url,...}, where the key is the user name and the value is the url link to the page contains the inforation of the user.
+# 
+# * In movie_categories.pkl, there is a dictionary with the movies name lists categoried with different tags. The details is explained in the api function get_movie_categories().
+# 
+# * in movie_info.pkl, there is a dictionary with the structure {movie name: information dictionary, ....}, where the information dictionary is the output of the get_info_with_name() function described as below.
 
-# # The following is the api functions
-
-# # First API
-
-# In[35]:
+# In[18]:
 
 
-#get the movie information with the movie name(movie name+(year))
+#get the movie information with the movie name(movie name+(year)), this one will get the newest data through http request
 #The structure of the output is as following:
 #   {'box_office': {'daliy': [{'Change':float, 
 #                              'Date': datetime, 
@@ -792,7 +827,7 @@ def parse_person_page(html_page, title):
 #             'Production Method': [string,...],
 #             'Running Time': string,
 #             'Source': string,
-#             'Video Release': string,
+#             'Video Release': datetime,
 #             'ranking on other records': [{'Amount': int,
 #                                           'Chart Date': string,
 #                                           'Days In Release': int,
@@ -800,19 +835,109 @@ def parse_person_page(html_page, title):
 #                                           'Record': string},...]}                 
 #}
 def get_info_with_name(name):
-    with open('name_url_bykey.pkl', 'rb') as f:
+    with open('name_url.pkl', 'rb') as f:
         name_dic = pickle.load(f)
+    print(name)
     
-    name_info=get_info(name_dic[name])
+    name_info=get_info(name_dic[name]['url'])
     
     return name_info
 
 
-# In[36]:
+# # The following is the api functions
 
-# # Second API
+# # First API
 
-# In[38]:
+# In[25]:
+
+
+#get the movie information with the movie name(movie name+(year)), this one will get the data from the local file which was scrapped from the internet before
+#The structure of the output is as following:
+#   {'box_office': {'daliy': [{'Change':float, 
+#                              'Date': datetime, 
+#                              'Gross': int, 
+#                              'Per Theater':int, 
+#                              'Rank':int, 
+#                              'Theaters':int,
+#                              'Total Gross': int,
+#                              'Week':int},... ],   
+#                 'demostic': [{'Rank': int,
+#                              'Record': string,
+#                              'Revenue': int},...],
+#                 'weekend': [{'Change': float,
+#                             'Date': datetime,
+#                             'Gross': int,
+#                             'Per Theater': int,
+#                             'Rank': int,
+#                             'Theaters': int,
+#                             'Total Gross': int,
+#                             'Week': int},...],
+#                 'weekly': [{'Change': float,
+#                            'Date': datetime,
+#                            'Gross': int,
+#                            'Per Theater': int,
+#                            'Rank': int,
+#                            'Theaters': int,
+#                            'Total Gross': int,
+#                            'Week': int},...]},
+#   'cast': {'cameos': [{'name': string,
+#                      'url': string},...],
+#            'leading_members': [{'name': string,
+#                               'url': string},...],
+#            'production': [{'name': string,
+#                          'role': string,
+#                          'url': string},...],
+#            'supporting_cast': [{'name': string,
+#                               'url': string},...],
+#            'uncategorized': [{'name': string,
+#                             'url': string},...]},
+#   'international': {'Box Office Summary': [{'Maximum Theaters': int,
+#                                           'Opening Weekend': int,
+#                                           'Opening Weekend Theaters': int,
+#                                           'Release Date': datetime,
+#                                           'Report Date': datetime,
+#                                           'Territory': sting,
+#                                           'Theatrical Engagements': int,
+#                                           'Total Box Office': int},...],
+#                     'International Box Office': [{'Rank': int,
+#                                                 'Record': string,
+#                                                 'Revenue': int},...],
+#                     'Worldwide Box Office': [{'Rank': int,
+#                                             'Record': string,
+#                                             'Revenue': int},...]},
+#    'news': {'news': [string, ....]},
+#    'summary': {'Budget': int,
+#             'Creative Type': string,
+#             'Domestic Releases': {'IMAX': datetime,        (may not have IMAX version)
+#                                   'Wide': datetime},
+#             'Franchise': string,
+#             'Genre': string,
+#             'International Releases': {location: {'Wide': datetime},...},   (may have IMAX version)
+#             'Keywords':[string,...],
+#             'MPAA Rating': string,
+#             'Production Companies': [string,...],
+#             'Production Countries': [string,...],
+#             'Production Method': [string,...],
+#             'Running Time': string,
+#             'Source': string,
+#             'Video Release': datetime,
+#             'ranking on other records': [{'Amount': int,
+#                                           'Chart Date': string,
+#                                           'Days In Release': int,
+#                                           'Rank': int,
+#                                           'Record': string},...]}                 
+#}
+def get_info_with_localname(name):
+    with open('movie_info.pkl', 'rb') as f:
+        name_dic = pickle.load(f)
+    
+    return name_dic[name]
+
+
+# In[26]:
+
+
+# In[14]:
 
 
 #get all the list of categories
@@ -833,11 +958,12 @@ def get_movie_categories():
     return test_categories
 
 
+# In[14]:
 
 
 # # Third API
 
-# In[50]:
+# In[15]:
 
 
 #given the name of the actor/writor/director/..., return the information dictionary
@@ -936,5 +1062,8 @@ def get_info_by_person_name(name):
     total_dic['technique']=technical_dic
     
     return total_dic
+
+
+# In[51]:
 
 
