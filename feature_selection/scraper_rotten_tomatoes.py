@@ -35,7 +35,7 @@ def retrieve_html(url):
 # AUTOLAB_IGNORE_START
 # result = retrieve_html("http://www.nytimes.com/2016/08/28/magazine/inside-facebooks-totally-insane-unintentionally-gigantic-hyperpartisan-political-media-machine.html")
 result = retrieve_html("https://www.rottentomatoes.com/m/rampage_2018")
-print(result)
+# print(result)
 # AUTOLAB_IGNORE_STOP
 
 
