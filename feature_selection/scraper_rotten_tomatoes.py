@@ -73,10 +73,10 @@ def get_critic_reviews(movie_name, BASE_URL=BASE_URL):
     soup = BeautifulSoup(html, 'html.parser')
     count = soup.find('span', {'class' : 'pageInfo'}).text
     count = int(count.split(" ")[3])
-    print(count)
+    # print(count)
     
     for i in range(count):
-        print("new loop")
+        # print("new loop")
         review_containers = soup.findAll('div', {'class' : 'review_container'})
         
         for review_container in review_containers:
